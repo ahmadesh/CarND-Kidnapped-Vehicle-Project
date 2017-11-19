@@ -25,7 +25,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
     
-    num_particles = 100;
+    num_particles = 1000;
     
     default_random_engine gen;
     
@@ -82,8 +82,6 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
         particles[i].x = dist_x(gen);
         particles[i].y = dist_y(gen);
         particles[i].theta = dist_theta(gen);
-        
-        //cout<<p.x<<endl;
     }
 }
 
@@ -94,18 +92,18 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
 	//   implement this method and use it as a helper during the updateWeights phase.
     
     
-    for (auto obs : observations){
+    for (unsigned int i=0; i<observations.size();i++){
         double mindist = numeric_limits<double>::max();
+        int id = -1;
         for (auto pred : predicted) {
-            double dist = sqrt(pow(pred.x-obs.x,2) + pow(pred.y-obs.y,2));
+            double dist = sqrt(pow(pred.x-observations[i].x,2) + pow(pred.y-observations[i].y,2));
             if (dist<mindist) {
                 mindist=dist;
-                obs.id = pred.id;
+                id = pred.id;
             }
         }
-        //cout<<obs.id<<endl;
+        observations[i].id = id;
     }
-    //cout<<"end"<<endl;
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
@@ -140,10 +138,8 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
             if (fabs(lm_x - x) <= sensor_range && fabs(lm_y - y) <= sensor_range) {
                 // add prediction to vector
                 predictions.push_back(LandmarkObs{lm_id, lm_x, lm_y});
-                //cout<<lm_id<<endl;
             }
          }
-        //cout<<"finish"<<endl;
     
         vector<LandmarkObs> obesrvations_tf;
         for (unsigned int k=0; k < observations.size(); k++) {
@@ -155,7 +151,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
         dataAssociation(predictions, obesrvations_tf);
         
         weights[i] = 1;
-        double gauss_norm= (1/(2 * M_PI * std_landmark[0] * std_landmark[1]));
+        double gauss_norm= 1.0/(2.0 * M_PI * std_landmark[0] * std_landmark[1]);
         for (unsigned int k=0; k < obesrvations_tf.size(); k++) {
             for (unsigned int j=0; j < predictions.size(); j++) {
                 if (predictions[j].id == obesrvations_tf[k].id) {
@@ -164,7 +160,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
                     double mu_x = predictions[j].x;
                     double mu_y = predictions[j].y;
                     
-                    double exponent= pow(x_obs - mu_x, 2)/(2 * pow(std_landmark[0],2)) + pow(y_obs - mu_y,2)/(2 * pow(std_landmark[1], 2));
+                    double exponent = pow(x_obs - mu_x, 2)/(2 * pow(std_landmark[0],2)) + pow(y_obs - mu_y,2)/(2 * pow(std_landmark[1], 2));
                     weights[i] = weights[i]  * gauss_norm * exp(-exponent);
                 }
             }
