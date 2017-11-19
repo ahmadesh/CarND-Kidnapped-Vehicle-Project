@@ -25,6 +25,8 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
     
+    num_particles = 100;
+    
     default_random_engine gen;
     
     // This line creates a normal (Gaussian) distribution for x
@@ -44,6 +46,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
         p.id = i;
         
         particles.push_back(p);
+        weights.push_back(1.0);
     }
     is_initialized = true;
 }
@@ -59,7 +62,7 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
     default_random_engine gen;
     
     for (int i = 0; i < num_particles; ++i) {
-        Particle p = particles.at(i);
+        Particle p = particles[i];
         
         if (abs(yaw_rate)<0.0001) {
             x = p.x + velocity * delta_t * cos(p.theta);
@@ -76,9 +79,11 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
         normal_distribution<double> dist_y(y, std_pos[1]);
         normal_distribution<double> dist_theta(theta, std_pos[3]);
         
-        p.x = dist_x(gen);
-        p.y = dist_y(gen);
-        p.theta = dist_theta(gen);
+        particles[i].x = dist_x(gen);
+        particles[i].y = dist_y(gen);
+        particles[i].theta = dist_theta(gen);
+        
+        //cout<<p.x<<endl;
     }
 }
 
@@ -90,7 +95,7 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
     
     
     for (auto obs : observations){
-        double mindist = MAXFLOAT;
+        double mindist = numeric_limits<double>::max();
         for (auto pred : predicted) {
             double dist = sqrt(pow(pred.x-obs.x,2) + pow(pred.y-obs.y,2));
             if (dist<mindist) {
@@ -98,8 +103,9 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
                 obs.id = pred.id;
             }
         }
+        //cout<<obs.id<<endl;
     }
-
+    //cout<<"end"<<endl;
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
@@ -115,7 +121,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	//   3.33
 	//   http://planning.cs.uiuc.edu/node99.html
     
-    for (unsigned int i=0; i<num_particles; i++) {
+    for (unsigned int i=0; i < num_particles; i++) {
         // transform to map x coordinate
         double x = particles[i].x;
         double y = particles[i].y;
@@ -133,38 +139,38 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
             // only consider landmarks within sensor range
             if (fabs(lm_x - x) <= sensor_range && fabs(lm_y - y) <= sensor_range) {
                 // add prediction to vector
-                predictions.push_back(LandmarkObs{lm_id, lm_x, lm_y });
+                predictions.push_back(LandmarkObs{lm_id, lm_x, lm_y});
+                //cout<<lm_id<<endl;
             }
-        }
+         }
+        //cout<<"finish"<<endl;
     
         vector<LandmarkObs> obesrvations_tf;
         for (unsigned int k=0; k < observations.size(); k++) {
-            double x_map = x + (cos(theta) * observations[k].y) - (sin(theta) * observations[k].x);
+            double x_map = x + (cos(theta) * observations[k].x) - (sin(theta) * observations[k].y);
             double y_map = y + (sin(theta) * observations[k].x) + (cos(theta) * observations[k].y);
-            obesrvations_tf.push_back(LandmarkObs{observations[k].id, x_map, y_map});
+            obesrvations_tf.push_back(LandmarkObs{-1, x_map, y_map});
         }
         
         dataAssociation(predictions, obesrvations_tf);
         
-        weights[i] = 1.0;
+        weights[i] = 1;
         double gauss_norm= (1/(2 * M_PI * std_landmark[0] * std_landmark[1]));
-        for (unsigned int k=0; k < observations.size(); k++) {
+        for (unsigned int k=0; k < obesrvations_tf.size(); k++) {
             for (unsigned int j=0; j < predictions.size(); j++) {
-                if (predictions[j].id == observations[k].id) {
-                    double x_obs = observations[k].x;
-                    double y_obs = observations[k].y;
+                if (predictions[j].id == obesrvations_tf[k].id) {
+                    double x_obs = obesrvations_tf[k].x;
+                    double y_obs = obesrvations_tf[k].y;
                     double mu_x = predictions[j].x;
                     double mu_y = predictions[j].y;
                     
                     double exponent= pow(x_obs - mu_x, 2)/(2 * pow(std_landmark[0],2)) + pow(y_obs - mu_y,2)/(2 * pow(std_landmark[1], 2));
-                    weights[i] *= gauss_norm * exp(-exponent);
+                    weights[i] = weights[i]  * gauss_norm * exp(-exponent);
                 }
             }
         }
-        
-        
+        particles[i].weight = weights[i];
     }
-    
 }
 
 void ParticleFilter::resample() {
