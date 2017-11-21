@@ -25,7 +25,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
     
-    num_particles = 1000;
+    num_particles = 100;
     
     default_random_engine gen;
     
@@ -34,7 +34,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
     
     // Create normal distributions for y and theta
     normal_distribution<double> dist_y(y, std[1]);
-    normal_distribution<double> dist_theta(theta, std[3]);
+    normal_distribution<double> dist_theta(theta, std[2]);
     
     for (int i = 0; i < num_particles; ++i) {
         Particle p;
@@ -42,7 +42,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
         p.x = dist_x(gen);
         p.y = dist_y(gen);
         p.theta = dist_theta(gen);
-        p.weight = 1;
+        p.weight = 1.0;
         p.id = i;
         
         particles.push_back(p);
@@ -67,7 +67,7 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
         if (abs(yaw_rate)<0.0001) {
             x = p.x + velocity * delta_t * cos(p.theta);
             y = p.y + velocity * delta_t * sin(p.theta);
-            theta = yaw_rate * delta_t;
+            theta = p.theta + yaw_rate * delta_t;
         }
         else {
             x = p.x + velocity/yaw_rate * (sin(p.theta+yaw_rate*delta_t) - sin(p.theta));
@@ -77,7 +77,7 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
         
         normal_distribution<double> dist_x(x, std_pos[0]);
         normal_distribution<double> dist_y(y, std_pos[1]);
-        normal_distribution<double> dist_theta(theta, std_pos[3]);
+        normal_distribution<double> dist_theta(theta, std_pos[2]);
         
         particles[i].x = dist_x(gen);
         particles[i].y = dist_y(gen);
@@ -179,9 +179,10 @@ void ParticleFilter::resample() {
     
     std::vector<Particle> new_particles;
     for (unsigned int i=0; i<num_particles; i++) {
-        new_particles.push_back(particles[distribution(gen)]);
+        int ind = distribution(gen);
+        new_particles.push_back(std::move(particles[ind]));
     }
-    particles = new_particles;
+    particles = std::move(new_particles);
 
 }
 
